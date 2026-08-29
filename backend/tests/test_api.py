@@ -78,6 +78,55 @@ def test_recommend_maneuver_endpoint_shows_rejections(client):
         assert rec["residual_pc"] < 1e-6
 
 
+def test_conjunctions_refresh_recomputes_without_error(client):
+    """Recompute drops the TLE cache and forces a fresh screening run."""
+    a = client.get("/conjunctions", params={"window_hours": 48})
+    b = client.get("/conjunctions", params={"window_hours": 48, "refresh": "true"})
+    assert a.status_code == 200 and b.status_code == 200
+    assert b.json()["conjunctions"], "refresh must still return a populated list"
+
+
+def test_separation_series_is_dense_enough_to_reach_the_miss_distance(client):
+    """The screening grid is 60 s, but the encounter is a sharp V. The endpoint
+    splices a fine grid around TCA so the plotted curve actually reaches the
+    refined miss distance instead of bottoming out hundreds of km above it."""
+    body = client.get("/conjunctions", params={"window_hours": 48}).json()
+    conj = next(c for c in body["conjunctions"] if c["synthetic"])
+
+    r = client.get(f"/conjunctions/{conj['conjunction_id']}/separation")
+    assert r.status_code == 200
+    s = r.json()
+    seps = s["separation_km"]
+    times = s["times_hours"]
+    assert len(seps) == len(times) > 100
+
+    # The minimum of the returned curve must land essentially on the miss distance.
+    assert min(seps) == pytest.approx(s["miss_distance_km"], abs=0.05)
+
+    # There must be sub-second-spaced samples straddling TCA (the spliced grid).
+    near = [t for t in times if abs(t - s["tca_hours"]) <= 3.5 / 60.0]
+    assert len(near) > 200
+
+
+def test_geometry_is_windowed_around_tca(client):
+    body = client.get("/conjunctions", params={"window_hours": 48}).json()
+    conj = next(c for c in body["conjunctions"] if c["synthetic"])
+
+    r = client.get(f"/conjunctions/{conj['conjunction_id']}/geometry", params={"window_min": 60})
+    assert r.status_code == 200
+    g = r.json()
+    ts = g["times_s"]
+    assert len(ts) == len(g["object_a"]["path_km"]) == len(g["object_b"]["path_km"]) > 100
+    # Every sample within the requested window of TCA.
+    assert all(abs(x - g["tca_s"]) <= 60 * 60 + 1 for x in ts)
+    # The two paths reach the miss distance at tca_index.
+    import numpy as np
+
+    a = np.array(g["object_a"]["path_km"][g["tca_index"]])
+    b = np.array(g["object_b"]["path_km"][g["tca_index"]])
+    assert np.linalg.norm(a - b) == pytest.approx(g["miss_distance_km"], abs=0.1)
+
+
 def test_recommend_maneuver_unknown_conjunction_404(client):
     r = client.post("/recommend-maneuver",
                     json={"object_id": 25544, "conjunction_id": "1-2"})

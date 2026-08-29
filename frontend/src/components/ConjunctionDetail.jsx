@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import OrbitPlot2D from "./OrbitPlot2D";
 import ManeuverDetail from "./ManeuverDetail";
 
-export default function ConjunctionDetail({ conjunction, onMetricsRefresh }) {
+export default function ConjunctionDetail({ conjunction }) {
   const [separation, setSeparation] = useState(null);
   const [error, setError] = useState(null);
 
@@ -20,31 +20,66 @@ export default function ConjunctionDetail({ conjunction, onMetricsRefresh }) {
     };
   }, [conjunction.conjunction_id]);
 
+  const c = conjunction;
+
   return (
     <div className="detail">
       <h2>
-        {conjunction.object_a.name} ↔ {conjunction.object_b.name}
-        {conjunction.synthetic && <span className="badge-syn">SYNTHETIC SCENARIO</span>}
+        {c.object_a.name} ↔ {c.object_b.name}
+        {c.synthetic && <span className="badge">Synthetic scenario</span>}
       </h2>
-      <div className={`tier ${conjunction.risk_tier}`}>{conjunction.risk_tier} risk</div>
-
-      <div className="kv">
-        <span className="k">Miss distance</span><span>{conjunction.miss_distance_km.toFixed(4)} km</span>
-        <span className="k">Relative speed</span><span>{conjunction.rel_speed_km_s.toFixed(3)} km/s</span>
-        <span className="k">Time of closest approach</span><span>{new Date(conjunction.tca).toUTCString()}</span>
-        <span className="k">TCA from now</span><span>{conjunction.tca_hours_from_now.toFixed(2)} h</span>
-        <span className="k">Collision probability</span><span>{conjunction.pc != null ? conjunction.pc.toExponential(3) : "—"}</span>
-        <span className="k">Composite risk score</span><span>{conjunction.risk_score ?? "—"}</span>
-        <span className="k">NORAD ids</span><span>{conjunction.object_a.norad_id} / {conjunction.object_b.norad_id}</span>
+      <div className="headline-tier">
+        <span className={`tier ${c.risk_tier}`}>{c.risk_tier} risk</span>
       </div>
 
-      <div className="section-title" style={{ padding: "10px 0", border: "none" }}>
-        Separation around TCA
-      </div>
+      <dl className="facts">
+        <dt>Miss distance</dt>
+        <dd>
+          <span className="num">{c.miss_distance_km.toFixed(4)}</span>{" "}
+          <span className="unit">km</span>
+        </dd>
+        <dt>Relative speed</dt>
+        <dd>
+          <span className="num">{c.rel_speed_km_s.toFixed(3)}</span>{" "}
+          <span className="unit">km/s</span>
+        </dd>
+        <dt>Time of closest approach</dt>
+        <dd>
+          <span className="num">{new Date(c.tca).toUTCString()}</span>{" "}
+          <span className="unit">(+{c.tca_hours_from_now.toFixed(1)} h)</span>
+        </dd>
+        <dt>Collision probability</dt>
+        <dd>
+          <span className="num">
+            {c.pc != null ? c.pc.toExponential(3) : "—"}
+          </span>
+        </dd>
+        <dt>Composite risk score</dt>
+        <dd>
+          <span className="num">{c.risk_score ?? "—"}</span>
+        </dd>
+        <dt>NORAD ids</dt>
+        <dd>
+          <span className="num">
+            {c.object_a.norad_id} / {c.object_b.norad_id}
+          </span>
+        </dd>
+      </dl>
+
+      <div className="section-title inline">Separation around TCA</div>
       {error && <div className="error">{error}</div>}
-      {separation ? <OrbitPlot2D separation={separation} /> : !error && <div className="loading">Loading…</div>}
+      {separation ? (
+        <OrbitPlot2D separation={separation} />
+      ) : (
+        !error && <div className="loading">Loading…</div>
+      )}
+      <div className="plot-note">
+        Log scale. The curve is re-sampled at 1-second spacing within ±3 minutes of TCA, so it
+        reaches the true closest approach — the red point sits on the line rather than floating
+        below a coarsely-sampled dip.
+      </div>
 
-      <ManeuverDetail conjunction={conjunction} onMetricsRefresh={onMetricsRefresh} />
+      <ManeuverDetail key={conjunction.conjunction_id} conjunction={conjunction} />
     </div>
   );
 }

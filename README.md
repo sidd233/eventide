@@ -8,7 +8,7 @@ actually clear the risk or that create a new conjunction.**
 
 ```
 backend/   FastAPI + SGP4 + NumPy/SciPy   — the physics and the API
-frontend/  React + Vite + Plotly + CesiumJS — alert list, 2-D plot, 3-D globe, metrics
+frontend/  React + Vite + Plotly + CesiumJS — hero globe, alert list, 2-D plot, metrics, /wiki
 ```
 
 ---
@@ -53,7 +53,7 @@ The test suite never touches the network — it runs against `tests/fixtures/sam
 | **1 Detect** | `services/tle_fetch.py`, `propagate.py`, `filters.py`, `detect.py` | `GET /conjunctions?window_hours=48` → ranked close approaches with refined TCA & miss distance |
 | **2 Assess** | `services/risk_models.py`, `assess.py` | adds `pc`, `risk_score`, `risk_tier` (Low/Medium/High) to each conjunction |
 | **3 Act** | `services/maneuver.py` | `POST /recommend-maneuver {object_id, conjunction_id}` → ranked **safe** maneuvers **plus every rejected candidate and why** |
-| **4–5 UI** | `frontend/src/components/*` | alert list, separation-vs-time plot, maneuver explainability panel, 3-D globe |
+| **4–5 UI** | `frontend/src/components/*`, `pages/*` | hero 3-D globe, alert list with per-object focus filter, continuous separation-vs-time plot, maneuver explainability panel, and an in-app `/wiki` explaining every algorithm |
 | **6 Metrics** | `services/metrics_store.py`, `routes/metrics.py` | `GET /metrics` — real numbers from the running system |
 
 ### Algorithms

@@ -14,6 +14,12 @@ def conjunctions(
     refresh: bool = Query(default=False),
 ) -> ConjunctionsResponse:
     container = get_container()
+    if refresh:
+        # "Recompute everything": also drop the TLE cache so this really pulls
+        # fresh element sets, not just a re-run over the cached catalogue.
+        invalidate = getattr(container.tle_source, "invalidate", None)
+        if callable(invalidate):
+            invalidate()
     result = container.get_detection(window_hours, force=refresh)
     metrics.record_detection(result)
 

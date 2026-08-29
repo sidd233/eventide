@@ -1,36 +1,71 @@
-export default function AlertList({ conjunctions, selectedId, onSelect, onRefresh, loading }) {
+export default function AlertList({
+  items,
+  total,
+  objects,
+  focus,
+  onFocus,
+  selectedId,
+  onSelect,
+  loading,
+}) {
   return (
-    <div>
-      <div className="section-title">
-        <span>Conjunction alerts ({conjunctions.length})</span>
-        <button onClick={onRefresh} disabled={loading}>
-          {loading ? "Screening…" : "Refresh"}
-        </button>
-      </div>
-      {conjunctions.length === 0 && !loading && (
-        <div className="loading">No conjunctions in the current window.</div>
-      )}
-      {conjunctions.map((c) => (
-        <div
-          key={c.conjunction_id}
-          className={`alert ${selectedId === c.conjunction_id ? "selected" : ""}`}
-          onClick={() => onSelect(c)}
+    <>
+      <div className="focus-bar">
+        <select
+          value={focus ?? ""}
+          onChange={(e) => onFocus(e.target.value ? Number(e.target.value) : null)}
         >
-          <div className="row1">
-            <span className="pair">
-              {c.object_a.name} ↔ {c.object_b.name}
-              {c.synthetic && <span className="badge-syn">SYNTHETIC</span>}
-            </span>
-            <span className={`tier ${c.risk_tier}`}>{c.risk_tier}</span>
+          <option value="">Focus on an object…</option>
+          {objects.map((o) => (
+            <option key={o.norad_id} value={o.norad_id}>
+              {o.name} · {o.norad_id}
+            </option>
+          ))}
+        </select>
+        {focus != null && (
+          <span className="focus-chip" onClick={() => onFocus(null)}>
+            × showing {items.length} of {total} — clear
+          </span>
+        )}
+      </div>
+
+      <div className="section-title bar">
+        <span>Conjunction alerts</span>
+        <span className="num">
+          {items.length}
+          {focus != null ? ` / ${total}` : ""}
+        </span>
+      </div>
+
+      <div className="alert-list">
+        {items.length === 0 && (
+          <div className="loading">
+            {loading ? "Screening…" : "No conjunctions match."}
           </div>
-          <div className="meta">
-            <span>miss {c.miss_distance_km.toFixed(3)} km</span>
-            <span>Δv-rel {c.rel_speed_km_s.toFixed(1)} km/s</span>
-            <span>TCA +{c.tca_hours_from_now.toFixed(1)} h</span>
-            <span>Pc {c.pc != null ? c.pc.toExponential(1) : "—"}</span>
+        )}
+        {items.map((c) => (
+          <div
+            key={c.conjunction_id}
+            className={`alert ${selectedId === c.conjunction_id ? "selected" : ""}`}
+            onClick={() => onSelect(c)}
+          >
+            <div className="row">
+              <span className="pair">
+                {c.object_a.name} ↔ {c.object_b.name}
+              </span>
+              <span className={`tier ${c.risk_tier}`}>{c.risk_tier}</span>
+            </div>
+            <div className="sub">
+              {c.synthetic && (
+                <span className="badge" style={{ marginRight: 8 }}>
+                  Synthetic
+                </span>
+              )}
+              miss <span className="num">{c.miss_distance_km.toFixed(3)}</span> km
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }

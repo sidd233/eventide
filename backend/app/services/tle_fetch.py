@@ -80,6 +80,15 @@ class CelesTrakTLESource(TLESource):
     def _age(self) -> float:
         return time.monotonic() - self._cache_time
 
+    def invalidate(self) -> None:
+        """Drop the cached TLE set so the next ``fetch()`` re-hits CelesTrak.
+
+        Used by the "recompute everything" action so a manual refresh really
+        pulls fresh element sets instead of reusing the TTL cache.
+        """
+        self._cache = None
+        self._cache_time = 0.0
+
     def fetch(self) -> list[TLE]:
         if self._cache is not None and self._age() < self._ttl_s:
             self.served_stale = False
