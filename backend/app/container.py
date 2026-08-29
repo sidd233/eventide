@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 
 from app.config import Settings, get_settings
 from app.domain import DetectionResult
@@ -23,8 +24,12 @@ class Container:
         self.settings = settings or get_settings()
         s = self.settings
 
+        bootstrap = Path(__file__).parent / "data" / "bootstrap_tles.txt"
         self.tle_source = CelesTrakTLESource(
-            groups=s.tle_groups, ttl_s=s.tle_cache_ttl_s, timeout_s=s.tle_timeout_s
+            groups=s.tle_groups,
+            ttl_s=s.tle_cache_ttl_s,
+            timeout_s=s.tle_timeout_s,
+            bootstrap_path=bootstrap if bootstrap.is_file() else None,
         )
         self.scenario_source: ScenarioInjectingTLESource | None = None
         if s.demo_inject_scenario:
