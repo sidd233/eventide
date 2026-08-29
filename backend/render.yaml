@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: eventide-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      - key: EVENTIDE_CORS_ORIGINS
+        # Set to your deployed frontend origin, e.g. '["https://your-app.vercel.app"]'
+        sync: false
+      - key: EVENTIDE_MAX_OBJECTS
+        # 250 keeps a cold /conjunctions call well under the free-tier timeout;
+        # raise once on a paid instance.
+        value: "250"
