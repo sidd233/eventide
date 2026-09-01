@@ -25,8 +25,12 @@ class Settings(BaseSettings):
     ]
     tle_cache_ttl_s: int = 3600
     tle_timeout_s: float = 20.0
-    # Cap the screened set so a live /conjunctions call stays interactive.
-    max_objects: int = 350
+    # Cap the screened set so a live /conjunctions call stays interactive and
+    # the pairwise scan's peak memory fits a small (512 MB) instance.
+    max_objects: int = 250
+    # How many distinct screening windows to keep cached at once. Each entry
+    # retains a full DetectionResult, so this bounds that retention.
+    detection_cache_size: int = 3
 
     # Inject one guaranteed synthetic high-Pc conjunction so the maneuver
     # rejection demo always has something to act on. Flagged synthetic=true in

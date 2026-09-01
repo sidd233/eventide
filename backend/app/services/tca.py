@@ -6,9 +6,44 @@ from __future__ import annotations
 from typing import Callable
 
 import numpy as np
-from scipy.optimize import minimize_scalar
 
 StateFn = Callable[[float], tuple[np.ndarray, np.ndarray]]
+
+_INV_PHI = (np.sqrt(5.0) - 1.0) / 2.0        # 1 / golden ratio  ~ 0.618
+_INV_PHI2 = (3.0 - np.sqrt(5.0)) / 2.0       # 1 / golden ratio^2 ~ 0.382
+
+
+def _golden_section_min(
+    f: Callable[[float], float], a: float, b: float, *, xatol: float = 1e-3,
+    maxiter: int = 100,
+) -> float:
+    """Minimum of a unimodal ``f`` on ``[a, b]`` by golden-section search.
+
+    Replaces ``scipy.optimize.minimize_scalar(method="bounded")`` so the service
+    does not drag in SciPy (~45 MB resident) for this one call. The separation
+    function over a padded coarse bracket is unimodal around the closest
+    approach, which is exactly what golden section needs.
+    """
+    a, b = min(a, b), max(a, b)
+    h = b - a
+    if h <= xatol:
+        return 0.5 * (a + b)
+    c, d = a + _INV_PHI2 * h, a + _INV_PHI * h
+    fc, fd = f(c), f(d)
+    for _ in range(maxiter):
+        if h <= xatol:
+            break
+        if fc < fd:
+            b, d, fd = d, c, fc
+            h *= _INV_PHI
+            c = a + _INV_PHI2 * h
+            fc = f(c)
+        else:
+            a, c, fc = c, d, fd
+            h *= _INV_PHI
+            d = a + _INV_PHI * h
+            fd = f(d)
+    return 0.5 * (a + b)
 
 
 def segment_closest_approach(dr: np.ndarray) -> np.ndarray:
@@ -22,13 +57,16 @@ def segment_closest_approach(dr: np.ndarray) -> np.ndarray:
     """
     d0 = dr[..., :-1, :]
     seg = dr[..., 1:, :] - d0
-    denom = np.sum(seg * seg, axis=-1)
-    num = -np.sum(d0 * seg, axis=-1)
+    # einsum reduces the dot products without materialising a full (..., T, 3)
+    # ``seg * seg`` / ``d0 * seg`` temporary each - the scan runs this over large
+    # pair chunks, so the intermediates dominate peak memory.
+    denom = np.einsum("...i,...i->...", seg, seg)
+    num = -np.einsum("...i,...i->...", d0, seg)
     frac = np.clip(
         np.divide(num, denom, out=np.zeros_like(num), where=denom > 0), 0.0, 1.0
     )
     closest = d0 + frac[..., None] * seg
-    return np.linalg.norm(closest, axis=-1)
+    return np.sqrt(np.einsum("...i,...i->...", closest, closest))
 
 
 def refine_tca(
@@ -39,9 +77,7 @@ def refine_tca(
         rb, _ = state_b(t)
         return float(np.linalg.norm(ra - rb))
 
-    res = minimize_scalar(sep, bounds=(t_lo, t_hi), method="bounded",
-                          options={"xatol": 1e-3})
-    tca = float(res.x)
+    tca = float(_golden_section_min(sep, t_lo, t_hi, xatol=1e-3))
     ra, va = state_a(tca)
     rb, vb = state_b(tca)
     miss = float(np.linalg.norm(ra - rb))

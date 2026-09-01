@@ -125,10 +125,18 @@ class ConjunctionDetector:
                 perigee, apogee = apsis_altitudes_km(tle)
                 if perigee < -50:                     # decayed / garbage element set
                     continue
+                # Store the coarse grid in float32: it only picks the bracket
+                # for TCA refinement (which re-propagates in full float64 via
+                # Satrec), and halving these arrays roughly halves the peak
+                # memory of the pairwise scan below.
                 objects.append(
                     ScreeningObject(
                         tle=tle,
-                        ephemeris=Ephemeris(times_s, np.asarray(r), np.asarray(v)),
+                        ephemeris=Ephemeris(
+                            times_s,
+                            np.asarray(r, dtype=np.float32),
+                            np.asarray(v, dtype=np.float32),
+                        ),
                         perigee_alt_km=perigee,
                         apogee_alt_km=apogee,
                         satrec=sat,
@@ -163,7 +171,11 @@ class ConjunctionDetector:
         J = np.array([p[1] for p in survivors])
 
         events: list[ConjunctionEvent] = []
-        chunk = 1200
+        # Size the pair chunk so the transient ``(chunk, T, 3)`` buffers in the
+        # closest-approach scan stay near a fixed budget regardless of the
+        # screening window (T grows with window_hours). At float32, ~1e6 => a
+        # ~12 MB buffer and a handful of them live at once.
+        chunk = min(2000, max(32, 1_000_000 // len(times_s)))
         for s in range(0, len(survivors), chunk):
             sl = slice(s, s + chunk)
             dr = R[I[sl]] - R[J[sl]]                              # (c, T, 3)

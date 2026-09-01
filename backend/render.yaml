@@ -5,7 +5,7 @@ services:
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -17,3 +17,8 @@ services:
         # 250 keeps a cold /conjunctions call well under the free-tier timeout;
         # raise once on a paid instance.
         value: "250"
+      - key: MALLOC_ARENA_MAX
+        # FastAPI runs sync route handlers in a thread pool; glibc opens a
+        # separate malloc arena per thread and is slow to return freed arenas
+        # to the OS, inflating steady-state RSS. Cap the arenas at 2.
+        value: "2"

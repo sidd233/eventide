@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 from app.config import Settings, get_settings
@@ -70,18 +71,27 @@ class Container:
         )
 
         self._lock = threading.Lock()
-        self._cache: dict[float, tuple[float, DetectionResult]] = {}
+        # Bounded LRU: each entry retains a full DetectionResult (every object's
+        # coarse ephemeris + Satrec, tens of MB). window_hours is a free-form
+        # query parameter, so an unbounded dict here is a memory leak - a client
+        # sweeping the window would pin one large result per distinct value.
+        self._cache: OrderedDict[float, tuple[float, DetectionResult]] = OrderedDict()
         self._cache_ttl_s = 300.0
+        self._cache_max = s.detection_cache_size
 
     def get_detection(self, window_hours: float, *, force: bool = False) -> DetectionResult:
         with self._lock:
             hit = self._cache.get(window_hours)
             if hit and not force and time.monotonic() - hit[0] < self._cache_ttl_s:
+                self._cache.move_to_end(window_hours)
                 return hit[1]
         result = self.detector.screen(window_hours)
         self.assessor.assess(result.events)
         with self._lock:
             self._cache[window_hours] = (time.monotonic(), result)
+            self._cache.move_to_end(window_hours)
+            while len(self._cache) > self._cache_max:
+                self._cache.popitem(last=False)
         return result
 
 
